@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(. venv/Scripts/activate)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(taskkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
