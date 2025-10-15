@@ -1427,17 +1427,20 @@ def tick():
     # 5. NPC가 똑똑하게 대기 좌석 선택 (아이디어 반영 모드) 또는 랜덤 선택 (실제 세계 모드)
     if FUTURE_MODE:
         # 아이디어 반영 모드: NPC가 가장 빨리 비워질 좌석을 선택
-        # 대기자가 없는 착석 중인 좌석들 찾기
-        available_seats = {sid: info for sid, info in SEATS.items()
-                          if info["status"] != "free"
-                          and info["stops_left"] is not None
-                          and len(info["waiting_queue"]) == 0}
+        # 각 좌석마다 80% 확률로 NPC 추가 시도
+        for _ in range(14):  # 최대 14명까지 추가 가능 (좌석 수만큼)
+            if random.random() > 0.2:  # 80% 확률로 NPC 추가
+                # 대기자가 없는 착석 중인 좌석들 찾기
+                available_seats = {sid: info for sid, info in SEATS.items()
+                                  if info["status"] != "free"
+                                  and info["stops_left"] is not None
+                                  and len(info["waiting_queue"]) == 0}
 
-        if available_seats and random.random() > 0.2:  # 80% 확률로 NPC 추가
-            # 가장 빨리 비워질 좌석 찾기
-            best_seat = min(available_seats.items(), key=lambda x: x[1]["stops_left"])
-            best_seat_id = best_seat[0]
-            SEATS[best_seat_id]["waiting_queue"].append(f"person_{best_seat_id}_{random.randint(1000, 9999)}")
+                if available_seats:
+                    # 가장 빨리 비워질 좌석 찾기
+                    best_seat = min(available_seats.items(), key=lambda x: x[1]["stops_left"])
+                    best_seat_id = best_seat[0]
+                    SEATS[best_seat_id]["waiting_queue"].append(f"person_{best_seat_id}_{random.randint(1000, 9999)}")
     else:
         # 실제 세계 모드: 랜덤하게 선택 (착석 중인 좌석에만)
         for seat_id, s in SEATS.items():
