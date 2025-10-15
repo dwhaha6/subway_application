@@ -896,10 +896,6 @@ def initialize_seats():
                 "destination": destination,
                 "waiting_queue": []
             }
-
-            # 각 좌석마다 80% 확률로 대기자 1명 추가 (최대 1명)
-            if random.random() > 0.2:
-                SEATS[seat_id]["waiting_queue"].append(f"person_{seat_id}_0")
         else:
             # 정방향: CURRENT_STATION_IDX에서 END_IDX로 증가
             if CURRENT_STATION_IDX < END_IDX - 1:
@@ -920,6 +916,27 @@ def initialize_seats():
                 "waiting_queue": []
             }
 
+    # 초기 대기자 배치 (모드에 따라 다르게)
+    if FUTURE_MODE:
+        # 미래 모드: 똑똑하게 가장 빨리 비워질 좌석에 배치
+        # 80% 확률로 대기자 약 11명 추가 (14 * 0.8)
+        num_waiters = sum(1 for _ in range(14) if random.random() > 0.2)
+
+        for _ in range(num_waiters):
+            # 대기자가 없는 좌석 중 가장 빨리 비워질 좌석 찾기
+            available_seats = {sid: info for sid, info in SEATS.items()
+                              if info["status"] != "free"
+                              and info["stops_left"] is not None
+                              and len(info["waiting_queue"]) == 0}
+
+            if available_seats:
+                # 가장 빨리 비워질 좌석 찾기
+                best_seat = min(available_seats.items(), key=lambda x: x[1]["stops_left"])
+                best_seat_id = best_seat[0]
+                SEATS[best_seat_id]["waiting_queue"].append(f"person_{best_seat_id}_0")
+    else:
+        # 실제 세계 모드: 랜덤하게 배치
+        for seat_id in SEATS:
             # 각 좌석마다 80% 확률로 대기자 1명 추가 (최대 1명)
             if random.random() > 0.2:
                 SEATS[seat_id]["waiting_queue"].append(f"person_{seat_id}_0")
