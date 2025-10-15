@@ -880,7 +880,9 @@ def initialize_seats():
         if is_reverse:
             # 역방향: CURRENT_STATION_IDX에서 END_IDX로 감소
             if CURRENT_STATION_IDX > END_IDX + 1:
-                destination_idx = random.randint(END_IDX + 1, CURRENT_STATION_IDX - 1)
+                # 승객들이 최소 5정거장 이상 타도록 설정
+                max_dest = max(CURRENT_STATION_IDX - 5, END_IDX + 1)
+                destination_idx = random.randint(END_IDX + 1, max_dest)
                 destination = STATIONS[destination_idx]
                 stops_left = CURRENT_STATION_IDX - destination_idx
             else:
@@ -899,7 +901,9 @@ def initialize_seats():
         else:
             # 정방향: CURRENT_STATION_IDX에서 END_IDX로 증가
             if CURRENT_STATION_IDX < END_IDX - 1:
-                destination_idx = random.randint(CURRENT_STATION_IDX + 1, END_IDX - 1)
+                # 승객들이 최소 5정거장 이상 타도록 설정
+                min_dest = min(CURRENT_STATION_IDX + 5, END_IDX - 1)
+                destination_idx = random.randint(min_dest, END_IDX - 1)
                 destination = STATIONS[destination_idx]
                 stops_left = destination_idx - CURRENT_STATION_IDX
             else:
