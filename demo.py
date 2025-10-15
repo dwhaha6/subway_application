@@ -41,8 +41,8 @@ SUBWAY_LINES = {
     },
 }
 
-# 좌석 상태(메모리). 실습용: 좌석 1~8
-SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 9)}
+# 좌석 상태(메모리). 실습용: 좌석 1~14 (위 7개, 아래 7개)
+SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 15)}
 CURRENT_LINE = None  # 현재 호선
 CURRENT_DIRECTION = None  # 현재 행선지
 CURRENT_STATION_IDX = 0  # 시뮬레이터용 "현재 역 인덱스"
@@ -464,19 +464,187 @@ PAGE = """
 <!doctype html>
 <title>Subway Seat Demo</title>
 <style>
-body { font-family: sans-serif; max-width: 1000px; margin: 24px auto; }
-table { border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-.badge { padding: 2px 6px; border-radius: 6px; font-size: 12px; }
-.free { background: #e8f5e9; }
-.occ  { background: #fff3e0; }
-.soon { background: #ffebee; }
-.recommended { background: #e3f2fd; font-weight: bold; }
-.actions form { display: inline; }
-small { color: #666; }
+body { font-family: sans-serif; max-width: 1200px; margin: 24px auto; }
 .info-box { background: #f5f5f5; padding: 16px; border-radius: 8px; margin-bottom: 24px; }
 .info-box h3 { margin-top: 0; }
 .reset-btn { background: #f44336; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-left: 12px; }
+
+/* 지하철 좌석 레이아웃 */
+.subway-container {
+  background: #f9f9f9;
+  border: 3px solid #333;
+  border-radius: 16px;
+  padding: 32px 24px;
+  margin: 24px 0;
+}
+
+.seat-row {
+  display: flex;
+  justify-content: space-around;
+  gap: 16px;
+  margin-bottom: 80px;
+}
+
+.seat-row:last-child {
+  margin-bottom: 0;
+}
+
+.seat-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 140px;
+}
+
+.seat {
+  width: 100%;
+  min-height: 120px;
+  border: 3px solid #333;
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+.seat.free {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border-color: #4caf50;
+}
+
+.seat.occupied {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border-color: #ff9800;
+}
+
+.seat.soon {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  border-color: #f44336;
+}
+
+.seat.recommended {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border-color: #2196f3;
+  box-shadow: 0 0 20px rgba(33, 150, 243, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.seat-number {
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+}
+
+.seat-status {
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.7);
+  font-weight: bold;
+}
+
+.seat-info {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.wait-button {
+  width: 100%;
+  padding: 10px 16px;
+  background: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wait-button:hover {
+  background: #f57c00;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.wait-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.waiting-indicator {
+  width: 100%;
+  padding: 8px;
+  background: #fff3e0;
+  border: 2px solid #ff9800;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #f57c00;
+}
+
+.seated-indicator {
+  width: 100%;
+  padding: 8px;
+  background: #e8f5e9;
+  border: 2px solid #4caf50;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #2e7d32;
+}
+
+.recommendation-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  font-size: 24px;
+  animation: spin 3s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+small { color: #666; }
+
+.next-station-btn {
+  background: #2196f3;
+  color: white;
+  padding: 16px 48px;
+  border: none;
+  border-radius: 50px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+  transition: all 0.3s;
+}
+
+.next-station-btn:hover {
+  background: #1976d2;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(33, 150, 243, 0.6);
+}
+
+.next-station-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4);
+}
 </style>
 
 <h1>🚇 지하철 좌석 예측 시스템</h1>
@@ -504,9 +672,6 @@ small { color: #666; }
     </small>
   </div>
   {% endif %}
-  <form method="post" action="/tick" style="display: inline;">
-    <button>➡️ 다음 역</button>
-  </form>
   <form method="post" action="/reset" style="display: inline;">
     <button class="reset-btn">🔄 처음부터</button>
   </form>
@@ -532,67 +697,137 @@ small { color: #666; }
   <strong>💡 추천 좌석:</strong> {{ recommended_seat }}번 좌석 (가장 빨리 비워질 예정)
 </div>
 {% endif %}
-<table>
-  <tr>
-    <th>좌석</th>
-    {% if future_mode %}<th>추천</th>{% endif %}
-    <th>상태</th>
-    {% if future_mode %}<th>목적지</th>{% endif %}
-    {% if future_mode %}<th>남은 정거장</th>{% endif %}
-    <th>대기 인원</th>
-    <th>조작</th>
-  </tr>
-  {% for sid, info in seats.items() %}
-    {% set tag = 'free' if info.status=='free' else ('soon' if (future_mode and info.stops_left==0) else 'occ') %}
-    {% set is_recommended = (sid == recommended_seat) %}
-    <tr class="{{ tag }}{% if future_mode and is_recommended %} recommended{% endif %}">
-      <td><strong>{{ sid }}</strong></td>
-      {% if future_mode %}
-      <td>{% if is_recommended %}⭐{% endif %}</td>
-      {% endif %}
-      <td>
-        {% if info.status=='free' %}
-          <span class="badge free">비어있음</span>
-        {% elif future_mode and info.stops_left==0 %}
-          <span class="badge soon">곧 비움</span>
-        {% else %}
-          <span class="badge occ">착석중</span>
-        {% endif %}
-      </td>
-      {% if future_mode %}
-      <td>{{ info.destination or '-' }}</td>
-      <td>{{ info.stops_left if info.stops_left is not none else '-' }}</td>
-      {% endif %}
-      <td>
-        {% if info.waiting_queue|length > 0 %}
-          <strong>🧍 대기 중</strong>
-          {% if 'user' in info.waiting_queue %}
-            <span style="color: #ff9800;">(나)</span>
+
+<div class="subway-container">
+  <!-- 위쪽 좌석 (1~7번) -->
+  <div class="seat-row">
+    {% for sid in range(1, 8) %}
+      {% set info = seats[sid] %}
+      {% set status_class = 'free' if info.status=='free' else ('soon' if (future_mode and info.stops_left==0) else 'occupied') %}
+      {% set is_recommended = (sid == recommended_seat) %}
+      <div class="seat-wrapper">
+        <!-- 좌석 -->
+        <div class="seat {{ status_class }}{% if future_mode and is_recommended %} recommended{% endif %}">
+          {% if future_mode and is_recommended %}
+          <div class="recommendation-badge">⭐</div>
           {% endif %}
-        {% else %}
-          <span style="color: #bbb;">비어있음</span>
-        {% endif %}
-      </td>
-      <td class="actions">
+          <div class="seat-number">{{ sid }}번</div>
+          <div class="seat-status">
+            {% if info.status=='free' %}
+              비어있음
+            {% elif future_mode and info.stops_left==0 %}
+              곧 비움
+            {% else %}
+              착석중
+            {% endif %}
+          </div>
+          {% if future_mode and info.status != 'free' %}
+          <div class="seat-info">
+            📍 {{ info.destination or '-' }}<br>
+            ⏱️ {{ info.stops_left if info.stops_left is not none else '-' }}정거장
+          </div>
+          {% endif %}
+          {% if info.waiting_queue|length > 0 and 'user' not in info.waiting_queue %}
+          <div class="seat-info" style="color: #ff9800;">
+            🧍 대기자 있음
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- 버튼/상태 표시 -->
         {% if user_state.seated_at == sid %}
-          <span style="color: #4caf50; font-weight: bold;">✓ 착석 중</span>
+          <div class="seated-indicator">✓ 착석 중</div>
         {% elif user_state.waiting_at == sid %}
-          <span style="color: #ff9800; font-weight: bold;">⏳ 대기 중</span>
+          <div class="waiting-indicator">⏳ 대기 중</div>
         {% else %}
-          {% if info.waiting_queue|length == 0 %}
-            <form method="post" action="/wait">
+          {% if info.status == 'free' and info.waiting_queue|length == 0 %}
+            <form method="post" action="/wait" style="width: 100%;">
               <input type="hidden" name="seat_id" value="{{ sid }}">
-              <button style="background: #ff9800; padding: 6px 12px;">🧍 서기</button>
+              <button type="submit" class="wait-button" style="background: #4caf50;">💺 앉기</button>
+            </form>
+          {% elif info.waiting_queue|length == 0 %}
+            <form method="post" action="/wait" style="width: 100%;">
+              <input type="hidden" name="seat_id" value="{{ sid }}">
+              <button type="submit" class="wait-button">🧍 서기</button>
             </form>
           {% else %}
-            <span style="color: #999;">대기 중</span>
+            <button class="wait-button" disabled>대기 중</button>
           {% endif %}
         {% endif %}
-      </td>
-    </tr>
-  {% endfor %}
-</table>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- 아래쪽 좌석 (8~14번) -->
+  <div class="seat-row">
+    {% for sid in range(8, 15) %}
+      {% set info = seats[sid] %}
+      {% set status_class = 'free' if info.status=='free' else ('soon' if (future_mode and info.stops_left==0) else 'occupied') %}
+      {% set is_recommended = (sid == recommended_seat) %}
+      <div class="seat-wrapper">
+        <!-- 버튼/상태 표시 -->
+        {% if user_state.seated_at == sid %}
+          <div class="seated-indicator">✓ 착석 중</div>
+        {% elif user_state.waiting_at == sid %}
+          <div class="waiting-indicator">⏳ 대기 중</div>
+        {% else %}
+          {% if info.status == 'free' and info.waiting_queue|length == 0 %}
+            <form method="post" action="/wait" style="width: 100%;">
+              <input type="hidden" name="seat_id" value="{{ sid }}">
+              <button type="submit" class="wait-button" style="background: #4caf50;">💺 앉기</button>
+            </form>
+          {% elif info.waiting_queue|length == 0 %}
+            <form method="post" action="/wait" style="width: 100%;">
+              <input type="hidden" name="seat_id" value="{{ sid }}">
+              <button type="submit" class="wait-button">🧍 서기</button>
+            </form>
+          {% else %}
+            <button class="wait-button" disabled>대기 중</button>
+          {% endif %}
+        {% endif %}
+
+        <!-- 좌석 -->
+        <div class="seat {{ status_class }}{% if future_mode and is_recommended %} recommended{% endif %}">
+          {% if future_mode and is_recommended %}
+          <div class="recommendation-badge">⭐</div>
+          {% endif %}
+          <div class="seat-number">{{ sid }}번</div>
+          <div class="seat-status">
+            {% if info.status=='free' %}
+              비어있음
+            {% elif future_mode and info.stops_left==0 %}
+              곧 비움
+            {% else %}
+              착석중
+            {% endif %}
+          </div>
+          {% if future_mode and info.status != 'free' %}
+          <div class="seat-info">
+            📍 {{ info.destination or '-' }}<br>
+            ⏱️ {{ info.stops_left if info.stops_left is not none else '-' }}정거장
+          </div>
+          {% endif %}
+          {% if info.waiting_queue|length > 0 and 'user' not in info.waiting_queue %}
+          <div class="seat-info" style="color: #ff9800;">
+            🧍 대기자 있음
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
 <p><small>💡 Tip: {% if future_mode %}추천 좌석 앞에서 대기하면 가장 빨리 앉을 수 있습니다!{% else %}좌석 앞에서 대기하다가 자리가 비면 자동으로 앉습니다!{% endif %}</small></p>
+
+<!-- 다음 역 버튼 (하단 고정) -->
+<div style="position: sticky; bottom: 20px; text-align: center; margin: 32px 0;">
+  <form method="post" action="/tick">
+    <button type="submit" class="next-station-btn">
+      ➡️ 다음 역으로 이동
+    </button>
+  </form>
+</div>
 
 <script>
 // 페이지 로드 시 저장된 스크롤 위치로 복원
@@ -615,6 +850,25 @@ document.querySelectorAll('form').forEach(form => {
 
 def nowstr():
     return datetime.now().strftime("%H:%M:%S")
+
+def seat_to_position(seat_id):
+    """좌석 번호를 (row, col)로 변환"""
+    if seat_id <= 7:
+        return (0, seat_id - 1)  # 위쪽 줄 (row=0)
+    else:
+        return (1, seat_id - 8)  # 아래쪽 줄 (row=1)
+
+def weighted_distance(seat1, seat2):
+    """가중치를 부여한 맨하탄 거리 계산
+    거리 = 같은줄거리 + (다른줄이면 × 1.5)
+    """
+    r1, c1 = seat_to_position(seat1)
+    r2, c2 = seat_to_position(seat2)
+
+    col_distance = abs(c1 - c2)  # 같은 줄 거리
+    row_difference = abs(r1 - r2)  # 다른 줄 여부 (0 또는 1)
+
+    return col_distance + (row_difference * 1.5)
 
 def initialize_seats():
     """모든 좌석에 랜덤 목적지 할당 (모든 좌석 착석 중으로 초기화)"""
@@ -812,7 +1066,7 @@ def start():
             CURRENT_STATION_IDX = START_IDX
 
         # 좌석 초기화
-        SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 9)}
+        SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 15)}
         USER_STATE["seated_at"] = None
         USER_STATE["waiting_at"] = None
         USER_STATE["standing_count"] = 0
@@ -827,7 +1081,7 @@ def reset():
     CURRENT_DIRECTION = None
     CURRENT_STATION_IDX = 0
     STATIONS = []
-    SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 9)}
+    SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 15)}
     USER_STATE = {"seated_at": None, "waiting_at": None, "standing_count": 0}
     FUTURE_MODE = True
     GAME_MODE = None
@@ -920,7 +1174,7 @@ def start_comparison_real():
             END_IDX = min(CURRENT_STATION_IDX + max_stops + 1, original_end_idx)
 
         # 좌석 초기화
-        SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 9)}
+        SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 15)}
         USER_STATE["seated_at"] = None
         USER_STATE["waiting_at"] = None
         USER_STATE["standing_count"] = 0
@@ -970,8 +1224,8 @@ def wait():
     if USER_STATE["seated_at"]:
         USER_STATE["seated_at"] = None
 
-    # 좌석이 비어있으면 바로 착석 성공
-    if SEATS[seat_id]["status"] == "free":
+    # 좌석이 비어있고 대기자가 없으면 바로 착석 성공
+    if SEATS[seat_id]["status"] == "free" and len(SEATS[seat_id]["waiting_queue"]) == 0:
         global SUCCESS_MESSAGE, GAME_MODE, COMPARISON_DATA, COMPARISON_PHASE, FUTURE_MODE
 
         # 기록 저장 (비교 모드에서만)
@@ -996,7 +1250,7 @@ def wait():
         CURRENT_DIRECTION = None
         CURRENT_STATION_IDX = 0
         STATIONS = []
-        SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 9)}
+        SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 15)}
         USER_STATE = {"seated_at": None, "waiting_at": None, "standing_count": 0}
 
         # 초기화면으로 리디렉션 (축하 화면이 먼저 표시됨)
@@ -1056,68 +1310,91 @@ def tick():
                 s["stops_left"] = None
                 s["updated"] = nowstr()
 
-        # 3. 좌석이 비면 대기열의 첫 번째 사람이 착석
-        if s["status"] == "free" and len(s["waiting_queue"]) > 0:
-            next_person = s["waiting_queue"].pop(0)
+        # 3. 좌석이 비면 전체 대기자 중 가장 가까운 사람이 착석
+        # (더 이상 해당 좌석의 대기열만 보지 않음)
 
-            if next_person == "user":
-                global SUCCESS_MESSAGE, GAME_MODE, COMPARISON_DATA, COMPARISON_PHASE, FUTURE_MODE
+    # 모든 좌석을 순회한 후, 비어있는 좌석마다 가장 가까운 대기자 찾기
+    for empty_seat_id, s in SEATS.items():
+        if s["status"] == "free":
+            # 모든 좌석의 대기자 리스트 수집
+            all_waiters = []
+            for waiter_seat_id, waiter_info in SEATS.items():
+                if len(waiter_info["waiting_queue"]) > 0:
+                    for person in waiter_info["waiting_queue"]:
+                        all_waiters.append({
+                            "person": person,
+                            "waiting_at": waiter_seat_id,
+                            "distance": weighted_distance(empty_seat_id, waiter_seat_id)
+                        })
 
-                # 사용자가 착석 성공 - 기록 저장 (비교 모드에서만)
-                standing_count = USER_STATE["standing_count"]
-                if GAME_MODE == "compare":
-                    mode_key = "future" if FUTURE_MODE else "real"
-                    # 기록 추가 (최대 10개, FIFO)
-                    STANDING_HISTORY[mode_key].append(standing_count)
-                    if len(STANDING_HISTORY[mode_key]) > 10:
-                        STANDING_HISTORY[mode_key].pop(0)
+            # 거리 순으로 정렬 (거리 → 좌석 번호 왼쪽 우선)
+            if all_waiters:
+                all_waiters.sort(key=lambda w: (w["distance"], w["waiting_at"]))
+                next_waiter = all_waiters[0]
+                next_person = next_waiter["person"]
+                from_seat = next_waiter["waiting_at"]
 
-                # 성공 메시지 설정
-                SUCCESS_MESSAGE = standing_count
+                # 대기열에서 제거
+                SEATS[from_seat]["waiting_queue"].remove(next_person)
 
-                # "처음부터" 버튼과 동일하게 초기화 (기록은 유지)
-                # 비교 모드가 아니면 게임 모드 변수도 초기화
-                if GAME_MODE != "compare" or COMPARISON_PHASE == "real":
-                    # 커스텀 모드이거나 비교 모드의 real 단계가 끝나면 모드 초기화
-                    pass  # continue_after_success에서 처리
+                if next_person == "user":
+                    global SUCCESS_MESSAGE, GAME_MODE, COMPARISON_DATA, COMPARISON_PHASE, FUTURE_MODE
 
-                CURRENT_LINE = None
-                CURRENT_DIRECTION = None
-                CURRENT_STATION_IDX = 0
-                STATIONS = []
-                SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 9)}
-                USER_STATE = {"seated_at": None, "waiting_at": None, "standing_count": 0}
+                    # 사용자가 착석 성공 - 기록 저장 (비교 모드에서만)
+                    standing_count = USER_STATE["standing_count"]
+                    if GAME_MODE == "compare":
+                        mode_key = "future" if FUTURE_MODE else "real"
+                        # 기록 추가 (최대 10개, FIFO)
+                        STANDING_HISTORY[mode_key].append(standing_count)
+                        if len(STANDING_HISTORY[mode_key]) > 10:
+                            STANDING_HISTORY[mode_key].pop(0)
 
-                seated_success = True  # 착석 성공 플래그
-            else:
-                # NPC가 착석 - 랜덤 목적지 할당
-                if is_reverse:
-                    # 역방향
-                    if CURRENT_STATION_IDX > END_IDX + 1:
-                        destination_idx = random.randint(END_IDX + 1, CURRENT_STATION_IDX - 1)
-                        # 인덱스 범위 검증
-                        if destination_idx < len(STATIONS):
-                            destination = STATIONS[destination_idx]
-                            stops_left = CURRENT_STATION_IDX - destination_idx
+                    # 성공 메시지 설정
+                    SUCCESS_MESSAGE = standing_count
 
-                            s["status"] = "occupied"
-                            s["stops_left"] = stops_left
-                            s["destination"] = destination
-                            s["updated"] = nowstr()
+                    # "처음부터" 버튼과 동일하게 초기화 (기록은 유지)
+                    # 비교 모드가 아니면 게임 모드 변수도 초기화
+                    if GAME_MODE != "compare" or COMPARISON_PHASE == "real":
+                        # 커스텀 모드이거나 비교 모드의 real 단계가 끝나면 모드 초기화
+                        pass  # continue_after_success에서 처리
+
+                    CURRENT_LINE = None
+                    CURRENT_DIRECTION = None
+                    CURRENT_STATION_IDX = 0
+                    STATIONS = []
+                    SEATS = {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 15)}
+                    USER_STATE = {"seated_at": None, "waiting_at": None, "standing_count": 0}
+
+                    seated_success = True  # 착석 성공 플래그
                 else:
-                    # 정방향
-                    if CURRENT_STATION_IDX < END_IDX - 1:
-                        # END_IDX가 STATIONS 길이를 초과하지 않도록 제한
-                        max_end = min(END_IDX - 1, len(STATIONS) - 1)
-                        if CURRENT_STATION_IDX < max_end:
-                            destination_idx = random.randint(CURRENT_STATION_IDX + 1, max_end)
-                            destination = STATIONS[destination_idx]
-                            stops_left = destination_idx - CURRENT_STATION_IDX
+                    # NPC가 착석 - 랜덤 목적지 할당
+                    if is_reverse:
+                        # 역방향
+                        if CURRENT_STATION_IDX > END_IDX + 1:
+                            destination_idx = random.randint(END_IDX + 1, CURRENT_STATION_IDX - 1)
+                            # 인덱스 범위 검증
+                            if destination_idx < len(STATIONS):
+                                destination = STATIONS[destination_idx]
+                                stops_left = CURRENT_STATION_IDX - destination_idx
 
-                            s["status"] = "occupied"
-                            s["stops_left"] = stops_left
-                            s["destination"] = destination
-                            s["updated"] = nowstr()
+                                s["status"] = "occupied"
+                                s["stops_left"] = stops_left
+                                s["destination"] = destination
+                                s["updated"] = nowstr()
+                    else:
+                        # 정방향
+                        if CURRENT_STATION_IDX < END_IDX - 1:
+                            # END_IDX가 STATIONS 길이를 초과하지 않도록 제한
+                            max_end = min(END_IDX - 1, len(STATIONS) - 1)
+                            if CURRENT_STATION_IDX < max_end:
+                                destination_idx = random.randint(CURRENT_STATION_IDX + 1, max_end)
+                                destination = STATIONS[destination_idx]
+                                stops_left = destination_idx - CURRENT_STATION_IDX
+
+                                s["status"] = "occupied"
+                                s["stops_left"] = stops_left
+                                s["destination"] = destination
+                                s["updated"] = nowstr()
 
         # 4. 각 좌석의 대기열에서 랜덤하게 사람들이 하차 (30% 확률)
         if len(s["waiting_queue"]) > 0:
@@ -1145,9 +1422,9 @@ def tick():
             best_seat_id = best_seat[0]
             SEATS[best_seat_id]["waiting_queue"].append(f"person_{best_seat_id}_{random.randint(1000, 9999)}")
     else:
-        # 실제 세계 모드: 랜덤하게 선택
+        # 실제 세계 모드: 랜덤하게 선택 (착석 중인 좌석에만)
         for seat_id, s in SEATS.items():
-            if random.random() > 0.5 and len(s["waiting_queue"]) == 0:
+            if random.random() > 0.5 and len(s["waiting_queue"]) == 0 and s["status"] != "free":
                 s["waiting_queue"].append(f"person_{seat_id}_{random.randint(1000, 9999)}")
 
     # 착석 성공 시 초기화면으로
