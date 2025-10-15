@@ -897,8 +897,8 @@ def initialize_seats():
                 "waiting_queue": []
             }
 
-            # 각 좌석마다 50% 확률로 대기자 1명 추가 (최대 1명)
-            if random.random() > 0.5:
+            # 각 좌석마다 80% 확률로 대기자 1명 추가 (최대 1명)
+            if random.random() > 0.2:
                 SEATS[seat_id]["waiting_queue"].append(f"person_{seat_id}_0")
         else:
             # 정방향: CURRENT_STATION_IDX에서 END_IDX로 증가
@@ -920,8 +920,8 @@ def initialize_seats():
                 "waiting_queue": []
             }
 
-            # 각 좌석마다 50% 확률로 대기자 1명 추가 (최대 1명)
-            if random.random() > 0.5:
+            # 각 좌석마다 80% 확률로 대기자 1명 추가 (최대 1명)
+            if random.random() > 0.2:
                 SEATS[seat_id]["waiting_queue"].append(f"person_{seat_id}_0")
 
 def get_recommended_seat():
@@ -1416,7 +1416,7 @@ def tick():
                           and info["stops_left"] is not None
                           and len(info["waiting_queue"]) == 0}
 
-        if available_seats and random.random() > 0.5:  # 50% 확률로 NPC 추가
+        if available_seats and random.random() > 0.2:  # 80% 확률로 NPC 추가
             # 가장 빨리 비워질 좌석 찾기
             best_seat = min(available_seats.items(), key=lambda x: x[1]["stops_left"])
             best_seat_id = best_seat[0]
@@ -1424,7 +1424,7 @@ def tick():
     else:
         # 실제 세계 모드: 랜덤하게 선택 (착석 중인 좌석에만)
         for seat_id, s in SEATS.items():
-            if random.random() > 0.5 and len(s["waiting_queue"]) == 0 and s["status"] != "free":
+            if random.random() > 0.2 and len(s["waiting_queue"]) == 0 and s["status"] != "free":
                 s["waiting_queue"].append(f"person_{seat_id}_{random.randint(1000, 9999)}")
 
     # 착석 성공 시 초기화면으로
