@@ -49,7 +49,7 @@ CURRENT_STATION_IDX = 0  # 시뮬레이터용 "현재 역 인덱스"
 STATIONS = []  # 현재 노선의 역 리스트
 START_IDX = 0  # 시작역 인덱스
 END_IDX = 0  # 종착역 인덱스
-USER_STATE = {"seated_at": None, "waiting_at": None, "standing_count": 0}  # 사용자 상태 (어느 좌석에 앉았는지 or 어느 좌석 앞에서 기다리는지, 서있은 정거장 수)
+USER_STATE = {"seated_at": None, "waiting_at": None, "standing_count": 0, "destination": None, "destination_idx": None}  # 사용자 상태 (어느 좌석에 앉았는지 or 어느 좌석 앞에서 기다리는지, 서있은 정거장 수, 목적지)
 FUTURE_MODE = True  # 앱 아이디어 반영 모드 (True: 신기능, False: 실제 세계)
 STANDING_HISTORY = {"future": [], "real": []}  # 착석 성공 시 서있던 시간 기록 (최대 10개, FIFO)
 SUCCESS_MESSAGE = None  # 착석 성공 메시지 (정거장 수)
@@ -59,7 +59,8 @@ COMPARISON_PHASE = None  # "future" 또는 "real" (비교 모드의 현재 단�
 CURRENT_CAR = None  # 현재 선택된 칸 번호 (1~10)
 NUM_CARS = 10  # 열차 칸 개수
 # 각 칸별 좌석 상태 (칸 번호: 좌석 딕셔너리)
-CARS = {car_num: {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": []} for i in range(1, 15)} for car_num in range(1, NUM_CARS + 1)}
+CARS = {car_num: {i: {"stops_left": None, "status": "free", "updated": None, "destination": None, "waiting_queue": [], "is_app_user": False} for i in range(1, 15)} for car_num in range(1, NUM_CARS + 1)}
+APP_USER_RATIO = 0.3  # 앱 사용자 비율 (30%)
 
 # 비교 모드용 미리 정의된 시나리오 (종점까지 약 15정거장 이내)
 COMPARISON_SCENARIOS = [
@@ -409,13 +410,97 @@ body { font-family: sans-serif; max-width: 1000px; margin: 48px auto; padding: 0
     </div>
     <div class="car-info">
       좌석: {{ info.seated }}/14<br>
-      서있는 승객: {{ info.standing }}명
+      서있는 승객: {{ info.standing }}명<br>
+      📱 앱 사용자: {{ info.app_users }}명
     </div>
     <form method="post" action="/select_car">
       <input type="hidden" name="car_number" value="{{ car_num }}">
       <button type="submit" class="select-btn">이 칸 선택</button>
     </form>
   </div>
+  {% endfor %}
+</div>
+"""
+
+DESTINATION_SELECT_PAGE = """
+<!doctype html>
+<title>목적지 선택</title>
+<style>
+body { font-family: sans-serif; max-width: 800px; margin: 48px auto; padding: 0 24px; }
+.info-section { background: #e3f2fd; padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #2196f3; }
+.station-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+.station-btn {
+  padding: 12px;
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  text-align: center;
+}
+.station-btn:hover {
+  border-color: #2196f3;
+  background: #e3f2fd;
+  transform: translateY(-2px);
+}
+.station-btn.current {
+  background: #ffc107;
+  border-color: #ff9800;
+  font-weight: bold;
+}
+.station-info {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+.exit-info {
+  background: #fff3e0;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  border-left: 4px solid #ff9800;
+}
+</style>
+
+<h1>🎯 목적지 선택</h1>
+<div class="info-section">
+  <strong>📍 {{ line }} | {{ direction }}</strong><br>
+  <strong>🚉 현재 역:</strong> {{ current_station }} ({{ car_number }}번 칸)<br>
+  <small>💡 하차할 역을 선택하세요. 선택한 역에서 알림을 받습니다.</small>
+</div>
+
+{% if next_stations_with_exits %}
+<div class="exit-info">
+  <strong>📊 다음 역 하차 예정 인원</strong><br>
+  {% for station_name, count in next_stations_with_exits %}
+    <div style="margin: 8px 0;">
+      <strong>{{ station_name }}:</strong> {{ count }}명 하차 예정
+      {% if count >= 5 %}
+        <span style="color: #f44336;">🔥 혼잡</span>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2>목적지를 선택하세요</h2>
+<div class="station-grid">
+  {% for station in stations %}
+  <form method="post" action="/set_destination" style="margin: 0;">
+    <input type="hidden" name="destination" value="{{ station.name }}">
+    <button type="submit" class="station-btn {% if station.is_current %}current{% endif %}" {% if station.is_current %}disabled{% endif %}>
+      {{ station.name }}
+      {% if station.stops_away %}
+        <div class="station-info">{{ station.stops_away }}정거장</div>
+      {% endif %}
+    </button>
+  </form>
   {% endfor %}
 </div>
 """
@@ -840,8 +925,14 @@ small { color: #666; }
           </div>
           {% if future_mode and info.status != 'free' %}
           <div class="seat-info">
-            📍 {{ info.destination or '-' }}<br>
-            ⏱️ {{ info.stops_left if info.stops_left is not none else '-' }}정거장
+            {% if info.is_app_user %}
+              📱 앱사용자<br>
+              📍 {{ info.destination or '-' }}<br>
+              ⏱️ {{ info.stops_left if info.stops_left is not none else '-' }}정거장
+            {% else %}
+              👤 일반승객<br>
+              <span style="color: #999;">목적지 미공개</span>
+            {% endif %}
           </div>
           {% endif %}
           {% if info.waiting_queue|length > 0 and 'user' not in info.waiting_queue %}
@@ -920,8 +1011,14 @@ small { color: #666; }
           </div>
           {% if future_mode and info.status != 'free' %}
           <div class="seat-info">
-            📍 {{ info.destination or '-' }}<br>
-            ⏱️ {{ info.stops_left if info.stops_left is not none else '-' }}정거장
+            {% if info.is_app_user %}
+              📱 앱사용자<br>
+              📍 {{ info.destination or '-' }}<br>
+              ⏱️ {{ info.stops_left if info.stops_left is not none else '-' }}정거장
+            {% else %}
+              👤 일반승객<br>
+              <span style="color: #999;">목적지 미공개</span>
+            {% endif %}
           </div>
           {% endif %}
           {% if info.waiting_queue|length > 0 and 'user' not in info.waiting_queue %}
@@ -991,6 +1088,7 @@ def get_car_occupancy_info(car_seats):
     """칸의 혼잡도 정보 계산"""
     seated = sum(1 for s in car_seats.values() if s["status"] != "free")
     standing = sum(len(s["waiting_queue"]) for s in car_seats.values())
+    app_users = sum(1 for s in car_seats.values() if s["status"] != "free" and s.get("is_app_user", False))
 
     # 최대 수용 인원: 좌석 14개 + 서있는 공간 약 20명 = 34명
     total_capacity = 34
@@ -1008,6 +1106,7 @@ def get_car_occupancy_info(car_seats):
     return {
         "seated": seated,
         "standing": standing,
+        "app_users": app_users,
         "occupancy_percent": occupancy_percent,
         "color": color
     }
@@ -1036,12 +1135,16 @@ def initialize_car_seats(car_num):
                 destination = STATIONS[destination_idx]
                 stops_left = 1
 
+            # 앱 사용자 여부 결정 (30% 확률)
+            is_app_user = random.random() < APP_USER_RATIO
+
             car_seats[seat_id] = {
                 "stops_left": stops_left,
                 "status": "occupied",
                 "updated": nowstr(),
                 "destination": destination,
-                "waiting_queue": []
+                "waiting_queue": [],
+                "is_app_user": is_app_user
             }
         else:
             if CURRENT_STATION_IDX < END_IDX - 1:
@@ -1054,12 +1157,16 @@ def initialize_car_seats(car_num):
                 destination = STATIONS[destination_idx]
                 stops_left = 1
 
+            # 앱 사용자 여부 결정 (30% 확률)
+            is_app_user = random.random() < APP_USER_RATIO
+
             car_seats[seat_id] = {
                 "stops_left": stops_left,
                 "status": "occupied",
                 "updated": nowstr(),
                 "destination": destination,
-                "waiting_queue": []
+                "waiting_queue": [],
+                "is_app_user": is_app_user
             }
 
     # 서있는 승객(대기자) 추가 - 칸마다 랜덤하게
@@ -1352,6 +1459,69 @@ def select_car():
     # 선택한 칸의 좌석을 메인 SEATS로 복사
     SEATS = CARS[CURRENT_CAR]
 
+    # 앱 사용 모드이면 목적지 선택 화면으로
+    if FUTURE_MODE:
+        return redirect("/select_destination")
+    else:
+        # 현실 모드는 목적지 없이 바로 진행
+        return redirect("/")
+
+@app.route("/select_destination")
+def select_destination():
+    """목적지 선택 화면"""
+    if not CURRENT_LINE or not STATIONS or CURRENT_CAR is None:
+        return redirect("/")
+
+    current_station = STATIONS[CURRENT_STATION_IDX]
+    is_reverse = START_IDX > END_IDX
+
+    # 현재 역 이후의 역들만 표시
+    stations_list = []
+    if is_reverse:
+        for i in range(CURRENT_STATION_IDX - 1, END_IDX, -1):
+            stations_list.append({
+                "name": STATIONS[i],
+                "stops_away": CURRENT_STATION_IDX - i,
+                "is_current": False,
+                "idx": i
+            })
+    else:
+        for i in range(CURRENT_STATION_IDX + 1, END_IDX):
+            stations_list.append({
+                "name": STATIONS[i],
+                "stops_away": i - CURRENT_STATION_IDX,
+                "is_current": False,
+                "idx": i
+            })
+
+    # 다음 3개 역의 하차 예정 인원 계산
+    next_stations_with_exits = []
+    for i in range(min(3, len(stations_list))):
+        station = stations_list[i]
+        exit_count = sum(1 for s in SEATS.values()
+                        if s["status"] != "free" and s["destination"] == station["name"])
+        if exit_count > 0:
+            next_stations_with_exits.append((station["name"], exit_count))
+
+    return render_template_string(DESTINATION_SELECT_PAGE,
+                                 line=CURRENT_LINE,
+                                 direction=CURRENT_DIRECTION,
+                                 current_station=current_station,
+                                 car_number=CURRENT_CAR,
+                                 stations=stations_list,
+                                 next_stations_with_exits=next_stations_with_exits)
+
+@app.post("/set_destination")
+def set_destination():
+    """사용자 목적지 설정"""
+    global USER_STATE
+
+    destination = request.form.get("destination")
+
+    if destination and destination in STATIONS:
+        USER_STATE["destination"] = destination
+        USER_STATE["destination_idx"] = STATIONS.index(destination)
+
     return redirect("/")
 
 @app.post("/back_to_setup")
@@ -1411,13 +1581,16 @@ def continue_after_success():
         # 동일한 조건으로 다시 시작
         return redirect("/start_comparison_real")
 
-    # 비교 모드 2단계(real)가 끝났으면 결과 화면으로
+    # 비교 모드 2단계(real)가 끝났으면 모드 선택 화면으로
     if GAME_MODE == "compare" and COMPARISON_PHASE == "real":
-        # 비교 모드 결과 화면이 필요하면 여기에 추가
-        # 지금은 모드 선택 화면으로 돌아감
-        pass
+        GAME_MODE = None
+        COMPARISON_DATA = None
+        COMPARISON_PHASE = None
+        FUTURE_MODE = True
+        CURRENT_CAR = None
+        return redirect("/")
 
-    # 초기화면으로 (게임 모드는 유지하지 않음)
+    # 그 외 (커스텀 모드 등)는 초기화면으로
     GAME_MODE = None
     COMPARISON_DATA = None
     COMPARISON_PHASE = None
@@ -1604,6 +1777,12 @@ def tick():
         # 정방향: 인덱스가 증가
         if CURRENT_STATION_IDX < END_IDX - 1:
             CURRENT_STATION_IDX += 1
+
+    # 사용자 목적지 도착 체크
+    if USER_STATE.get("destination_idx") and CURRENT_STATION_IDX == USER_STATE["destination_idx"]:
+        # 목적지 도착 알림 (SUCCESS_MESSAGE 재사용)
+        # TODO: 별도의 도착 알림 화면 구현 가능
+        pass
 
     # 사용자가 서있으면 카운트 증가
     if not USER_STATE["seated_at"]:
