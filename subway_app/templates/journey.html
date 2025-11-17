@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>여정 - 지하철 좌석 예측</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding-bottom: 100px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .route-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            font-size: 20px;
+            font-weight: 700;
+            margin-top: 10px;
+        }
+
+        .section {
+            background: white;
+            margin: 10px;
+            border-radius: 16px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .train-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .train-card:hover {
+            border-color: #00A84D;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,168,77,0.2);
+        }
+
+        .train-card.selected {
+            border-color: #00A84D;
+            background: #f0fff4;
+        }
+
+        .train-time {
+            font-size: 28px;
+            font-weight: 700;
+            color: #00A84D;
+            margin-bottom: 8px;
+        }
+
+        .train-info {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .car-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .car-card {
+            aspect-ratio: 1;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            padding: 4px;
+            min-width: 0;
+        }
+
+        .car-card:hover {
+            transform: scale(1.05);
+        }
+
+        .car-card.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .car-number {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+
+        .car-status {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: white;
+            font-weight: 600;
+        }
+
+        .car-percent {
+            font-size: 10px;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .notice-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #856404;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .status-low { background: #4CAF50; }
+        .status-medium { background: #FF9800; }
+        .status-high { background: #F44336; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>🚇 2호선</div>
+        <div class="route-info">
+            <span>{{ start_station }}</span>
+            <span>→</span>
+            <span>{{ end_station }}</span>
+        </div>
+    </div>
+
+    <!-- 열차 선택 -->
+    <div class="section">
+        <div class="section-title">
+            <span>🚄</span>
+            <span>탑승할 열차 선택 (필수)</span>
+        </div>
+        <div id="train-list">
+            <div class="loading">열차 정보를 불러오는 중...</div>
+        </div>
+    </div>
+
+    <!-- 칸 선택 -->
+    <div class="section" id="car-section" style="display: none;">
+        <div class="section-title">
+            <span>🎯</span>
+            <span>탑승할 칸 선택 (선택사항)</span>
+        </div>
+        <div class="notice-box">
+            💡 칸 정보를 입력하면 역마다 하차 예측 정보를 받을 수 있습니다!
+        </div>
+        <div id="car-grid" class="car-grid"></div>
+        <button class="btn btn-secondary" id="skip-btn">칸 선택 건너뛰기</button>
+        <button class="btn btn-primary" id="confirm-btn" style="display: none;">확인</button>
+    </div>
+
+    <script>
+        const startStation = "{{ start_station }}";
+        const endStation = "{{ end_station }}";
+        let selectedTrain = null;
+        let selectedCar = null;
+        let trainSelectionTime = null; // 열차 선택 시간 기록
+        let countdownIntervals = []; // 카운트다운 인터벌 저장
+
+        // 페이지 로드 시 열차 정보 가져오기
+        window.addEventListener('load', () => {
+            loadTrains();
+        });
+
+        function loadTrains() {
+            fetch(`/api/arrivals/${startStation}`)
+                .then(r => r.json())
+                .then(trains => {
+                    displayTrains(trains);
+                });
+        }
+
+        function displayTrains(trains) {
+            const container = document.getElementById('train-list');
+            container.innerHTML = '';
+
+            // 기존 카운트다운 인터벌 정리
+            countdownIntervals.forEach(interval => clearInterval(interval));
+            countdownIntervals = [];
+
+            if (trains.length === 0) {
+                container.innerHTML = '<div class="loading">도착 예정인 열차가 없습니다</div>';
+                return;
+            }
+
+            trains.forEach((train, index) => {
+                const card = document.createElement('div');
+                card.className = 'train-card';
+                card.dataset.trainIndex = index;
+
+                // 초기 시간 표시
+                const timeElement = document.createElement('div');
+                timeElement.className = 'train-time';
+
+                const infoElement = document.createElement('div');
+                infoElement.className = 'train-info';
+                infoElement.innerHTML = `
+                    <div>${train.direction}</div>
+                    <div>현재 위치: ${train.current_station}</div>
+                `;
+
+                card.appendChild(timeElement);
+                card.appendChild(infoElement);
+                card.onclick = () => selectTrain(train, card, index);
+                container.appendChild(card);
+
+                // 실시간 카운트다운 시작
+                let remainingSeconds = train.arrival_time;
+                updateTrainTime(timeElement, remainingSeconds);
+
+                const interval = setInterval(() => {
+                    remainingSeconds--;
+                    updateTrainTime(timeElement, remainingSeconds);
+
+                    if (remainingSeconds <= 0) {
+                        clearInterval(interval);
+                        // 시간이 0이 되면 카드 비활성화
+                        card.style.opacity = '0.5';
+                        card.style.pointerEvents = 'none';
+                    }
+                }, 1000);
+
+                countdownIntervals.push(interval);
+            });
+        }
+
+        function updateTrainTime(element, seconds) {
+            if (seconds <= 0) {
+                element.innerHTML = '출발함';
+                element.style.color = '#999';
+                return;
+            }
+
+            // 1분 미만은 "곧 도착"으로 표시
+            if (seconds < 60) {
+                element.innerHTML = '곧 도착';
+                element.style.color = '#F44336';
+            } else {
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                element.innerHTML = `${minutes}분 ${secs}초 후`;
+                element.style.color = '#00A84D';
+            }
+        }
+
+        function selectTrain(train, element, index) {
+            selectedTrain = train;
+            trainSelectionTime = Date.now(); // 선택 시간 기록
+
+            // 선택 표시
+            document.querySelectorAll('.train-card').forEach(c => c.classList.remove('selected'));
+            element.classList.add('selected');
+
+            // 서버에 선택 정보 전송
+            fetch('/api/select-train', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(train)
+            });
+
+            // 칸 선택 섹션 표시
+            document.getElementById('car-section').style.display = 'block';
+            loadCars();
+        }
+
+        function loadCars() {
+            fetch(`/api/congestion/2호선/${startStation}/외선순환`)
+                .then(r => r.json())
+                .then(cars => displayCars(cars));
+        }
+
+        function displayCars(cars) {
+            const grid = document.getElementById('car-grid');
+            grid.innerHTML = '';
+
+            cars.forEach(car => {
+                const card = document.createElement('div');
+                card.className = 'car-card';
+
+                let statusClass = 'status-low';
+                if (car.congestion_level === '보통') statusClass = 'status-medium';
+                if (car.congestion_level === '혼잡') statusClass = 'status-high';
+
+                card.innerHTML = `
+                    <div class="car-number">${car.car_no}칸</div>
+                    <div class="car-status ${statusClass}">${car.congestion_level}</div>
+                    <div class="car-percent">${car.congestion_percent}%</div>
+                `;
+
+                card.onclick = () => selectCar(car.car_no, card);
+                grid.appendChild(card);
+            });
+        }
+
+        function selectCar(carNo, element) {
+            selectedCar = carNo;
+
+            document.querySelectorAll('.car-card').forEach(c => c.classList.remove('selected'));
+            element.classList.add('selected');
+
+            fetch('/api/select-car', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({car_no: carNo})
+            });
+
+            document.getElementById('confirm-btn').style.display = 'block';
+        }
+
+        document.getElementById('skip-btn').onclick = () => {
+            if (confirm('칸 선택을 건너뛰면 하차 예측 정보를 받을 수 없습니다. 계속하시겠습니까?')) {
+                startJourney(false);
+            }
+        };
+
+        document.getElementById('confirm-btn').onclick = () => {
+            startJourney(true);
+        };
+
+        function startJourney(hasCarInfo) {
+            if (!selectedTrain) {
+                alert('열차를 먼저 선택해주세요!');
+                return;
+            }
+
+            // 경과 시간 계산 (밀리초 → 초)
+            const elapsedSeconds = Math.floor((Date.now() - trainSelectionTime) / 1000);
+            const originalArrivalTime = selectedTrain.arrival_time;
+
+            // 1분 미만 열차는 60초로 통일
+            const effectiveArrivalTime = originalArrivalTime < 60 ? 60 : originalArrivalTime;
+
+            // 실제 남은 시간 계산
+            let remainingTime = effectiveArrivalTime - elapsedSeconds;
+
+            // 시간이 0 이하면 열차를 놓친 것
+            if (remainingTime <= 0) {
+                const missedTrain = confirm('열차를 놓치셨나요?');
+                if (missedTrain) {
+                    // 예 -> 열차 목록 새로고침
+                    loadTrains();
+                    document.getElementById('car-section').style.display = 'none';
+                    selectedTrain = null;
+                    selectedCar = null;
+                    trainSelectionTime = null;
+                    return;
+                } else {
+                    // 아니오 -> 그대로 탑승 진행
+                    remainingTime = 0;
+                }
+            }
+
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = remainingTime % 60;
+
+            if (remainingTime > 0) {
+                alert(`🚄 ${minutes}분 ${seconds}초 후 열차가 도착합니다!\n\n도착하면 자동으로 탑승 처리됩니다.`);
+            }
+
+            // 남은 시간만큼 대기
+            setTimeout(() => {
+                boardTrain(hasCarInfo);
+            }, remainingTime * 1000);
+        }
+
+        function boardTrain(hasCarInfo) {
+            fetch('/api/board-train', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    // 탑승 후 riding 페이지로 이동
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                    }
+                });
+        }
+    </script>
+</body>
+</html>

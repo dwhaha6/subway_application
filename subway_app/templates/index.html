@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>지하철 좌석 예측</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* 지도 컨테이너 */
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* 상단 검색 바 */
+        .search-bar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 400px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            padding: 15px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-results {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .search-results.active {
+            display: block;
+        }
+
+        .search-item {
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+        }
+
+        .search-item:hover {
+            background: #f8f9fa;
+        }
+
+        .search-item:last-child {
+            border-bottom: none;
+        }
+
+        /* 하단 선택 패널 */
+        .selection-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            padding: 20px;
+            transition: transform 0.3s;
+        }
+
+        .selection-panel.collapsed {
+            transform: translateY(calc(100% - 60px));
+        }
+
+        .panel-handle {
+            width: 40px;
+            height: 4px;
+            background: #ddd;
+            border-radius: 2px;
+            margin: 0 auto 15px;
+            cursor: pointer;
+        }
+
+        .selection-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .selection-label {
+            width: 70px;
+            font-weight: 600;
+            color: #333;
+            font-size: 15px;
+        }
+
+        .selection-value {
+            flex: 1;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            color: #666;
+        }
+
+        .selection-value.selected {
+            background: #f0f4ff;
+            border-color: #667eea;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .confirm-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .confirm-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .confirm-btn:not(:disabled):active {
+            transform: scale(0.98);
+        }
+
+        /* 로딩 오버레이 */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 15px;
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* 커스텀 마커 스타일 */
+        .station-marker {
+            background: white;
+            border: 3px solid #00A84D;
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+        }
+
+        .station-marker.selected-start {
+            background: #667eea;
+            border-color: #667eea;
+            width: 16px;
+            height: 16px;
+        }
+
+        .station-marker.selected-end {
+            background: #f44336;
+            border-color: #f44336;
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 로딩 화면 -->
+    <div class="loading-overlay" id="loading">
+        <div class="loader"></div>
+        <div class="loading-text" id="loading-text">지도를 불러오는 중...</div>
+    </div>
+
+    <!-- 지도 -->
+    <div id="map"></div>
+
+    <!-- 검색 바 -->
+    <div class="search-bar">
+        <input type="text"
+               class="search-input"
+               id="search-input"
+               placeholder="🔍 역 이름 검색..."
+               autocomplete="off">
+        <div class="search-results" id="search-results"></div>
+    </div>
+
+    <!-- 하단 선택 패널 -->
+    <div class="selection-panel" id="panel">
+        <div class="panel-handle" onclick="togglePanel()"></div>
+
+        <div class="mode-selector">
+            <button class="mode-btn active" id="start-mode-btn" onclick="setSelectionMode('start')">
+                📍 출발역 선택
+            </button>
+            <button class="mode-btn" id="end-mode-btn" onclick="setSelectionMode('end')">
+                🎯 도착역 선택
+            </button>
+        </div>
+
+        <div class="selection-row">
+            <div class="selection-label">출발역</div>
+            <div class="selection-value" id="start-display">지도에서 선택하거나 검색하세요</div>
+        </div>
+
+        <div class="selection-row">
+            <div class="selection-label">도착역</div>
+            <div class="selection-value" id="end-display">지도에서 선택하거나 검색하세요</div>
+        </div>
+
+        <button class="confirm-btn" id="confirm-btn" disabled onclick="confirmRoute()">
+            경로 확인 →
+        </button>
+    </div>
+
+    <script>
+        // 지하철역 데이터
+        const stations = {{ lines['2호선']['stations'] | tojson }};
+
+        // 역 좌표 데이터 (전체 2호선)
+        const stationCoords = {
+            "시청": {lat: 37.5665, lng: 126.9780},
+            "을지로입구": {lat: 37.5660, lng: 126.9821},
+            "을지로3가": {lat: 37.5660, lng: 126.9910},
+            "을지로4가": {lat: 37.5668, lng: 126.9977},
+            "동대문역사문화공원": {lat: 37.5654, lng: 127.0079},
+            "신당": {lat: 37.5661, lng: 127.0176},
+            "상왕십리": {lat: 37.5658, lng: 127.0288},
+            "왕십리": {lat: 37.5613, lng: 127.0374},
+            "한양대": {lat: 37.5558, lng: 127.0441},
+            "뚝섬": {lat: 37.5467, lng: 127.0475},
+            "성수": {lat: 37.5445, lng: 127.0557},
+            "건대입구": {lat: 37.5404, lng: 127.0703},
+            "구의": {lat: 37.5369, lng: 127.0856},
+            "강변": {lat: 37.5350, lng: 127.0944},
+            "잠실나루": {lat: 37.5204, lng: 127.1026},
+            "잠실": {lat: 37.5133, lng: 127.1001},
+            "삼성": {lat: 37.5088, lng: 127.0633},
+            "선릉": {lat: 37.5048, lng: 127.0495},
+            "역삼": {lat: 37.5007, lng: 127.0365},
+            "강남": {lat: 37.4979, lng: 127.0276},
+            "교대": {lat: 37.4937, lng: 127.0144},
+            "서초": {lat: 37.4836, lng: 127.0057},
+            "방배": {lat: 37.4813, lng: 126.9970},
+            "사당": {lat: 37.4764, lng: 126.9815},
+            "낙성대": {lat: 37.4767, lng: 126.9631},
+            "서울대입구": {lat: 37.4812, lng: 126.9527},
+            "봉천": {lat: 37.4821, lng: 126.9426},
+            "신림": {lat: 37.4842, lng: 126.9297},
+            "신대방": {lat: 37.4870, lng: 126.9134},
+            "구로디지털단지": {lat: 37.4852, lng: 126.9015},
+            "대림": {lat: 37.4930, lng: 126.8956},
+            "신도림": {lat: 37.5088, lng: 126.8913},
+            "문래": {lat: 37.5176, lng: 126.8948},
+            "영등포구청": {lat: 37.5245, lng: 126.8964},
+            "당산": {lat: 37.5345, lng: 126.9024},
+            "합정": {lat: 37.5496, lng: 126.9139},
+            "홍대입구": {lat: 37.5573, lng: 126.9236},
+            "신촌": {lat: 37.5559, lng: 126.9368},
+            "이대": {lat: 37.5567, lng: 126.9459},
+            "아현": {lat: 37.5575, lng: 126.9566},
+            "충정로": {lat: 37.5600, lng: 126.9636}
+        };
+
+        let map;
+        let markers = {};
+        let polyline = null;
+        let userMarker = null;
+
+        let selectedStart = null;
+        let selectedEnd = null;
+        let selectionMode = 'start';
+
+        // 지도 초기화
+        function initMap() {
+            try {
+                // Leaflet 지도 생성 (서울 시청 중심)
+                map = L.map('map').setView([37.5665, 126.978], 12);
+
+                // OpenStreetMap 타일 추가
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(map);
+
+                // 사용자 위치 가져오기
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const lat = position.coords.latitude;
+                            const lng = position.coords.longitude;
+
+                            // 지도 중심을 사용자 위치로
+                            map.setView([lat, lng], 13);
+
+                            // 사용자 위치 마커
+                            userMarker = L.circleMarker([lat, lng], {
+                                radius: 8,
+                                fillColor: '#4285F4',
+                                color: 'white',
+                                weight: 3,
+                                opacity: 1,
+                                fillOpacity: 1
+                            }).addTo(map);
+
+                            userMarker.bindPopup('현재 위치').openPopup();
+
+                            document.getElementById('loading').classList.add('hidden');
+                        },
+                        (error) => {
+                            console.log('위치 정보를 가져올 수 없습니다:', error);
+                            document.getElementById('loading').classList.add('hidden');
+                        }
+                    );
+                } else {
+                    document.getElementById('loading').classList.add('hidden');
+                }
+
+                // 모든 역에 마커 생성
+                Object.entries(stationCoords).forEach(([stationName, coords]) => {
+                    const marker = L.circleMarker([coords.lat, coords.lng], {
+                        radius: 6,
+                        fillColor: 'white',
+                        color: '#00A84D',
+                        weight: 3,
+                        opacity: 1,
+                        fillOpacity: 1
+                    }).addTo(map);
+
+                    marker.bindTooltip(stationName, {
+                        permanent: false,
+                        direction: 'top'
+                    });
+
+                    marker.on('click', () => {
+                        selectStation(stationName, marker);
+                    });
+
+                    markers[stationName] = marker;
+                });
+
+            } catch (error) {
+                document.getElementById('loading-text').textContent =
+                    '지도 초기화 실패: ' + error.message;
+                console.error('지도 초기화 오류:', error);
+            }
+        }
+
+        // 역 선택
+        function selectStation(stationName, marker) {
+            if (selectionMode === 'start') {
+                // 이전 선택 해제
+                if (selectedStart && markers[selectedStart]) {
+                    resetMarker(markers[selectedStart]);
+                }
+
+                selectedStart = stationName;
+                document.getElementById('start-display').textContent = stationName;
+                document.getElementById('start-display').classList.add('selected');
+
+                // 마커 강조
+                marker.setStyle({
+                    radius: 8,
+                    fillColor: '#667eea',
+                    color: 'white',
+                    weight: 3
+                });
+
+                // 자동으로 도착역 선택 모드로 전환
+                setSelectionMode('end');
+
+            } else if (selectionMode === 'end') {
+                // 같은 역은 선택 불가
+                if (stationName === selectedStart) {
+                    alert('출발역과 도착역은 달라야 합니다!');
+                    return;
+                }
+
+                // 이전 선택 해제
+                if (selectedEnd && markers[selectedEnd]) {
+                    resetMarker(markers[selectedEnd]);
+                }
+
+                selectedEnd = stationName;
+                document.getElementById('end-display').textContent = stationName;
+                document.getElementById('end-display').classList.add('selected');
+
+                // 마커 강조
+                marker.setStyle({
+                    radius: 8,
+                    fillColor: '#f44336',
+                    color: 'white',
+                    weight: 3
+                });
+            }
+
+            updateConfirmButton();
+            drawRoute();
+        }
+
+        // 마커 초기화
+        function resetMarker(marker) {
+            marker.setStyle({
+                radius: 6,
+                fillColor: 'white',
+                color: '#00A84D',
+                weight: 3
+            });
+        }
+
+        // 경로 그리기
+        function drawRoute() {
+            if (!selectedStart || !selectedEnd) return;
+
+            // 기존 경로 제거
+            if (polyline) {
+                map.removeLayer(polyline);
+            }
+
+            const startCoords = stationCoords[selectedStart];
+            const endCoords = stationCoords[selectedEnd];
+
+            const latlngs = [
+                [startCoords.lat, startCoords.lng],
+                [endCoords.lat, endCoords.lng]
+            ];
+
+            polyline = L.polyline(latlngs, {
+                color: '#667eea',
+                weight: 5,
+                opacity: 0.7
+            }).addTo(map);
+
+            // 경로가 모두 보이도록 지도 조정
+            map.fitBounds(polyline.getBounds(), {
+                padding: [50, 50]
+            });
+        }
+
+        // 선택 모드 변경
+        function setSelectionMode(mode) {
+            selectionMode = mode;
+
+            const startBtn = document.getElementById('start-mode-btn');
+            const endBtn = document.getElementById('end-mode-btn');
+
+            if (mode === 'start') {
+                startBtn.classList.add('active');
+                endBtn.classList.remove('active');
+            } else {
+                endBtn.classList.add('active');
+                startBtn.classList.remove('active');
+            }
+        }
+
+        // 확인 버튼 업데이트
+        function updateConfirmButton() {
+            const btn = document.getElementById('confirm-btn');
+            if (selectedStart && selectedEnd) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
+        }
+
+        // 패널 토글
+        function togglePanel() {
+            const panel = document.getElementById('panel');
+            panel.classList.toggle('collapsed');
+        }
+
+        // 경로 확인
+        function confirmRoute() {
+            if (selectedStart && selectedEnd) {
+                window.location.href = `/journey?start=${selectedStart}&end=${selectedEnd}&line=2호선`;
+            }
+        }
+
+        // 검색 기능
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            searchResults.innerHTML = '';
+
+            if (query.length === 0) {
+                searchResults.classList.remove('active');
+                return;
+            }
+
+            const filtered = stations.filter(s => s.includes(query));
+
+            if (filtered.length > 0) {
+                filtered.forEach(station => {
+                    const item = document.createElement('div');
+                    item.className = 'search-item';
+                    item.textContent = station;
+                    item.onclick = () => {
+                        searchInput.value = '';
+                        searchResults.classList.remove('active');
+
+                        // 해당 역으로 지도 이동
+                        const coords = stationCoords[station];
+                        if (coords) {
+                            map.setView([coords.lat, coords.lng], 15);
+
+                            // 역 선택
+                            selectStation(station, markers[station]);
+                        }
+                    };
+                    searchResults.appendChild(item);
+                });
+                searchResults.classList.add('active');
+            } else {
+                searchResults.classList.remove('active');
+            }
+        });
+
+        // 외부 클릭 시 검색 결과 닫기
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.remove('active');
+            }
+        });
+
+        // 페이지 로드 시 지도 초기화
+        window.addEventListener('load', initMap);
+    </script>
+</body>
+</html>

@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>탑승 중</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .train-status {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .route-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+
+        .station-point {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .station-point.current {
+            color: #667eea;
+        }
+
+        .station-point.destination {
+            color: #f44336;
+        }
+
+        .progress-arrow {
+            flex: 1;
+            height: 4px;
+            background: #e0e0e0;
+            margin: 0 15px;
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 1s linear;
+        }
+
+        .current-station-card {
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .current-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .current-station-name {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .next-station-info {
+            font-size: 16px;
+            color: #666;
+        }
+
+        .next-station-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .time-remaining {
+            font-size: 20px;
+            font-weight: 700;
+            color: #667eea;
+            margin-top: 10px;
+        }
+
+        .prediction-card {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .station-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .station-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .station-item:last-child {
+            border-bottom: none;
+        }
+
+        .station-item.passed {
+            opacity: 0.4;
+        }
+
+        .station-item.current {
+            background: #f0f4ff;
+            border-radius: 8px;
+        }
+
+        .station-item.destination {
+            background: #fff0f0;
+            border-radius: 8px;
+        }
+
+        .station-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .exit-prediction {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .exit-count {
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .notice-box {
+            background: #fff9e6;
+            border: 2px solid #ffd700;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .notice-box.alert {
+            background: #ffe6e6;
+            border-color: #ff4444;
+        }
+
+        .notice-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .alert-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .car-info-badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        /* 좌석 배치 스타일 */
+        .seats-card {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .seats-layout {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-top: 15px;
+            max-width: 100%;
+        }
+
+        .seat {
+            aspect-ratio: 1;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2px;
+            font-size: 8px;
+            position: relative;
+            transition: all 0.3s;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .seat.empty {
+            background: #f5f5f5;
+            border-color: #ccc;
+        }
+
+        .seat.occupied {
+            background: #e8e8e8;
+            border-color: #999;
+        }
+
+        .seat.app-user {
+            background: #e3f2fd;
+            border-color: #2196F3;
+        }
+
+        .seat.current-user {
+            background: #c8e6c9;
+            border-color: #4CAF50;
+            border-width: 3px;
+        }
+
+        .seat-number {
+            font-weight: 700;
+            font-size: 9px;
+            color: #333;
+            margin-bottom: 1px;
+        }
+
+        .seat-exit {
+            font-size: 7px;
+            color: #2196F3;
+            font-weight: 600;
+            text-align: center;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        .seat-status {
+            font-size: 7px;
+            color: #666;
+        }
+
+        .seat-waiters {
+            font-size: 6px;
+            color: #FF9800;
+            font-weight: 600;
+            margin-top: 1px;
+        }
+
+        .seat-actions {
+            display: flex;
+            gap: 1px;
+            margin-top: 1px;
+        }
+
+        .seat-btn {
+            font-size: 7px;
+            padding: 1px 3px;
+            border: 1px solid #ddd;
+            border-radius: 2px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .seat-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .seat-btn.sit {
+            color: #4CAF50;
+            border-color: #4CAF50;
+        }
+
+        .seat-btn.wait {
+            color: #FF9800;
+            border-color: #FF9800;
+        }
+
+        .seats-legend {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 12px;
+            font-size: 10px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .legend-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            border: 2px solid;
+            flex-shrink: 0;
+        }
+
+        .legend-box.empty {
+            background: #f5f5f5;
+            border-color: #ccc;
+        }
+
+        .legend-box.occupied {
+            background: #e8e8e8;
+            border-color: #999;
+        }
+
+        .legend-box.app-user {
+            background: #e3f2fd;
+            border-color: #2196F3;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .current-station-name {
+                font-size: 28px;
+            }
+
+            .seats-card {
+                padding: 15px;
+            }
+
+            .seats-layout {
+                grid-template-columns: repeat(7, 1fr);
+                gap: 3px;
+            }
+
+            .seat {
+                font-size: 7px;
+                padding: 1px;
+            }
+
+            .seat-number {
+                font-size: 8px;
+            }
+
+            .seat-exit {
+                font-size: 6px;
+            }
+
+            .seat-btn {
+                font-size: 6px;
+                padding: 1px 2px;
+            }
+
+            .seats-legend {
+                font-size: 9px;
+                gap: 6px;
+            }
+
+            .legend-box {
+                width: 10px;
+                height: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 열차 상태 -->
+        <div class="header">
+            <div class="train-status">🚇 탑승 중</div>
+            <div class="route-info">
+                <div class="station-point">{{ start_station }}</div>
+                <div class="progress-arrow">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="station-point destination">{{ end_station }}</div>
+            </div>
+            {% if selected_car %}
+            <div style="text-align: center; margin-top: 10px;">
+                <span class="car-info-badge">{{ selected_car }}호차</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 현재 역 정보 -->
+        <div class="current-station-card">
+            <div class="current-label">현재 위치</div>
+            <div class="current-station-name" id="current-station">{{ start_station }}</div>
+            <div class="next-station-info">
+                다음 역: <span class="next-station-name" id="next-station">-</span>
+            </div>
+            <div class="time-remaining" id="time-remaining">-</div>
+        </div>
+
+        <!-- 알림 -->
+        <div class="notice-box" id="notice-box" style="display: none;">
+            <div class="alert-icon" id="notice-icon">⚠️</div>
+            <div class="notice-text" id="notice-text"></div>
+        </div>
+
+        <!-- 좌석 배치 (칸 선택한 경우만) -->
+        {% if selected_car %}
+        <div class="seats-card">
+            <div class="card-title">{{ selected_car }}호차 실시간 좌석 정보</div>
+            <div class="seats-layout" id="seats-layout">
+                <!-- JavaScript로 동적 생성 -->
+            </div>
+            <div class="seats-legend">
+                <div class="legend-item">
+                    <div class="legend-box empty"></div>
+                    <span>빈 좌석</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box occupied"></div>
+                    <span>일반</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box app-user"></div>
+                    <span>앱 사용자</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #c8e6c9; border-color: #4CAF50;"></div>
+                    <span>내 좌석</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 하차 예측 정보 -->
+        <div class="prediction-card">
+            <div class="card-title">
+                {% if selected_car %}
+                {{ selected_car }}호차 하차 예측 정보
+                {% else %}
+                전체 하차 예측 정보
+                {% endif %}
+            </div>
+            <div class="station-list" id="station-list">
+                <!-- JavaScript로 동적 생성 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const startStation = "{{ start_station }}";
+        const endStation = "{{ end_station }}";
+        const selectedCar = {{ selected_car if selected_car else 'null' }};
+        const line = "{{ line }}";
+
+        // 2호선 역 순서 (실제로는 방향에 따라 다름)
+        const stations = {{ stations | tojson }};
+
+        let currentStationIndex = 0;
+        let stationInterval;
+        let progressPercentage = 0;
+
+        // 역 간 평균 소요 시간 (초)
+        const STATION_INTERVAL = 120; // 2분
+
+        // 페이지 로드 시 시작
+        window.onload = function() {
+            initializeJourney();
+            startJourney();
+        };
+
+        function initializeJourney() {
+            // 역 리스트 표시
+            updateStationList();
+
+            // 좌석 정보 로드 (칸 선택한 경우만)
+            if (selectedCar) {
+                loadSeats();
+            }
+        }
+
+        function loadSeats() {
+            fetch('/api/seats')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        displaySeats(data.seats);
+                    }
+                });
+        }
+
+        function displaySeats(seats) {
+            const container = document.getElementById('seats-layout');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            seats.forEach(seat => {
+                const seatDiv = document.createElement('div');
+                seatDiv.className = 'seat';
+
+                if (seat.is_current_user) {
+                    // 현재 사용자가 앉은 좌석
+                    seatDiv.classList.add('current-user');
+                    seatDiv.innerHTML = `
+                        <div class="seat-number">${seat.seat_no}</div>
+                        <div class="seat-exit">내 좌석</div>
+                        <div class="seat-exit">${seat.exit_station}</div>
+                    `;
+                } else if (!seat.occupied) {
+                    // 빈 좌석 - 앉기 버튼 표시
+                    seatDiv.classList.add('empty');
+                    seatDiv.innerHTML = `
+                        <div class="seat-number">${seat.seat_no}</div>
+                        <div class="seat-status">빈자리</div>
+                        <div class="seat-actions">
+                            <button class="seat-btn sit" onclick="sitOnSeat(${seat.seat_no})">앉기</button>
+                        </div>
+                    `;
+                    if (seat.waiters > 0) {
+                        seatDiv.innerHTML += `<div class="seat-waiters">대기 ${seat.waiters}명</div>`;
+                    }
+                } else if (seat.is_app_user) {
+                    // 앱 사용자
+                    seatDiv.classList.add('app-user');
+                    seatDiv.innerHTML = `
+                        <div class="seat-number">${seat.seat_no}</div>
+                        <div class="seat-exit">${seat.exit_station || '탑승'}</div>
+                        <div class="seat-actions">
+                            <button class="seat-btn wait" onclick="waitForSeat(${seat.seat_no})">대기</button>
+                        </div>
+                    `;
+                    if (seat.waiters > 0) {
+                        seatDiv.innerHTML += `<div class="seat-waiters">대기 ${seat.waiters}명</div>`;
+                    }
+                } else {
+                    // 일반 사용자
+                    seatDiv.classList.add('occupied');
+                    seatDiv.innerHTML = `
+                        <div class="seat-number">${seat.seat_no}</div>
+                        <div class="seat-status">일반</div>
+                        <div class="seat-actions">
+                            <button class="seat-btn wait" onclick="waitForSeat(${seat.seat_no})">대기</button>
+                        </div>
+                    `;
+                    if (seat.waiters > 0) {
+                        seatDiv.innerHTML += `<div class="seat-waiters">대기 ${seat.waiters}명</div>`;
+                    }
+                }
+
+                container.appendChild(seatDiv);
+            });
+        }
+
+        function sitOnSeat(seatNo) {
+            fetch('/api/sit-seat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({seat_no: seatNo})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    displaySeats(data.seats);
+                    alert(data.message);
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function waitForSeat(seatNo) {
+            fetch('/api/wait-seat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({seat_no: seatNo})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    displaySeats(data.seats);
+                    alert(data.message);
+                }
+            });
+        }
+
+        function startJourney() {
+            // 2분마다 다음 역으로 이동
+            stationInterval = setInterval(() => {
+                currentStationIndex++;
+
+                if (currentStationIndex < stations.length - 1) {
+                    const newStation = stations[currentStationIndex];
+                    updateCurrentStation();
+                    updateStationList();
+                    updateProgress();
+                    checkAlerts();
+
+                    // 좌석 상태 업데이트 (해당 역에서 내릴 사람들 하차)
+                    if (selectedCar) {
+                        updateSeatsForStation(newStation);
+                    }
+                } else {
+                    // 도착!
+                    arriveAtDestination();
+                }
+            }, STATION_INTERVAL * 1000);
+
+            // 실시간 카운트다운
+            let countdown = STATION_INTERVAL;
+            setInterval(() => {
+                countdown--;
+                if (countdown <= 0) {
+                    countdown = STATION_INTERVAL;
+                }
+                updateCountdown(countdown);
+            }, 1000);
+        }
+
+        function updateCurrentStation() {
+            const current = stations[currentStationIndex];
+            document.getElementById('current-station').textContent = current;
+
+            if (currentStationIndex < stations.length - 1) {
+                document.getElementById('next-station').textContent = stations[currentStationIndex + 1];
+            } else {
+                document.getElementById('next-station').textContent = '도착';
+            }
+        }
+
+        function updateCountdown(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            document.getElementById('time-remaining').textContent =
+                `다음 역까지 ${minutes}분 ${secs}초`;
+        }
+
+        function updateProgress() {
+            progressPercentage = ((currentStationIndex + 1) / stations.length) * 100;
+            document.getElementById('progress-fill').style.width = progressPercentage + '%';
+        }
+
+        function updateStationList() {
+            const listContainer = document.getElementById('station-list');
+            listContainer.innerHTML = '';
+
+            stations.forEach((station, index) => {
+                const item = document.createElement('div');
+                item.className = 'station-item';
+
+                if (index < currentStationIndex) {
+                    item.classList.add('passed');
+                } else if (index === currentStationIndex) {
+                    item.classList.add('current');
+                } else if (station === endStation) {
+                    item.classList.add('destination');
+                }
+
+                const stationNameDiv = document.createElement('div');
+                stationNameDiv.className = 'station-name';
+                stationNameDiv.textContent = station;
+
+                const predictionDiv = document.createElement('div');
+                predictionDiv.className = 'exit-prediction';
+
+                if (index <= currentStationIndex) {
+                    predictionDiv.textContent = '통과';
+                } else {
+                    // 하차 예측 생성
+                    const exitCount = generateExitPrediction(station, index);
+                    if (selectedCar) {
+                        predictionDiv.innerHTML = `예상 하차: <span class="exit-count">${exitCount}명</span>`;
+                    } else {
+                        predictionDiv.innerHTML = `예상 하차: <span class="exit-count">${exitCount * 10}명</span>`;
+                    }
+                }
+
+                item.appendChild(stationNameDiv);
+                item.appendChild(predictionDiv);
+                listContainer.appendChild(item);
+            });
+        }
+
+        function generateExitPrediction(station, index) {
+            // 실제로는 서버에서 받아와야 함
+            // 현재는 랜덤 생성 (칸별 하차 예측)
+            if (station === endStation) {
+                return selectedCar ? Math.floor(Math.random() * 5) + 8 : 80; // 도착역은 많이 내림
+            }
+
+            // 일반 역
+            const baseExit = Math.floor(Math.random() * 3) + 1;
+            return baseExit;
+        }
+
+        function checkAlerts() {
+            const stationsRemaining = stations.length - currentStationIndex - 1;
+            const noticeBox = document.getElementById('notice-box');
+            const noticeIcon = document.getElementById('notice-icon');
+            const noticeText = document.getElementById('notice-text');
+
+            if (stationsRemaining === 2) {
+                // 2개 역 전
+                noticeBox.style.display = 'block';
+                noticeBox.classList.remove('alert');
+                noticeIcon.textContent = '⚠️';
+                noticeText.textContent = `${endStation}역까지 2개 역 남았습니다. 하차 준비하세요!`;
+            } else if (stationsRemaining === 1) {
+                // 1개 역 전
+                noticeBox.style.display = 'block';
+                noticeBox.classList.add('alert');
+                noticeIcon.textContent = '🚨';
+                noticeText.textContent = `다음 역이 ${endStation}입니다! 하차 준비!`;
+            } else {
+                noticeBox.style.display = 'none';
+            }
+        }
+
+        function updateSeatsForStation(station) {
+            // 서버에 역 통과 알림 -> 해당 역에서 내릴 사람들의 좌석 비우기
+            fetch('/api/update-seats', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({current_station: station})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    displaySeats(data.seats);
+                }
+            });
+        }
+
+        function arriveAtDestination() {
+            clearInterval(stationInterval);
+
+            // 사용자가 앉은 좌석 자동 하차 처리
+            if (selectedCar) {
+                updateSeatsForStation(endStation);
+            }
+
+            alert(`✅ ${endStation}역에 도착했습니다!\n\n안전하게 하차하세요.`);
+
+            // 초기화 페이지로 이동
+            setTimeout(() => {
+                window.location.href = '/reset';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
